@@ -125,7 +125,7 @@ impl<S: Storage> BPlusTree<S> {
     /// Get value by key
     pub fn get(&mut self, key: &Key) -> Option<Value> {
         let leaf_id = self.find_leaf(key);
-        let _guard = self.lock_manager.lock_page(leaf_id);
+        let _guard = self.lock_manager.read_lock(leaf_id);
 
         let page = self.storage.read_page(leaf_id)?;
         let node = page.get_node()?;
@@ -144,7 +144,7 @@ impl<S: Storage> BPlusTree<S> {
         let mut page_id = self.find_leaf(start);
 
         loop {
-            let _guard = self.lock_manager.lock_page(page_id);
+            let _guard = self.lock_manager.read_lock(page_id);
             let page = match self.storage.read_page(page_id) {
                 Some(p) => p,
                 None => break,
@@ -187,7 +187,7 @@ impl<S: Storage> BPlusTree<S> {
 
         // Check if root needs to be replaced
         if self.root_page != 0 {
-            let _guard = self.lock_manager.lock_page(self.root_page);
+            let _guard = self.lock_manager.read_lock(self.root_page);
             if let Some(page) = self.storage.read_page(self.root_page)
                 && let Some(node) = page.get_node()
             {
@@ -232,7 +232,7 @@ impl<S: Storage> BPlusTree<S> {
         let mut page_id = self.first_leaf();
 
         loop {
-            let _guard = self.lock_manager.lock_page(page_id);
+            let _guard = self.lock_manager.read_lock(page_id);
             let page = match self.storage.read_page(page_id) {
                 Some(p) => p,
                 None => break,
@@ -262,7 +262,7 @@ impl<S: Storage> BPlusTree<S> {
     pub fn first_leaf(&mut self) -> u64 {
         let mut page_id = self.root_page;
         loop {
-            let _guard = self.lock_manager.lock_page(page_id);
+            let _guard = self.lock_manager.read_lock(page_id);
             let page = self.storage.read_page(page_id).unwrap();
             let node = page.get_node().unwrap();
             if node.is_leaf() {
@@ -275,7 +275,7 @@ impl<S: Storage> BPlusTree<S> {
     pub fn find_leaf(&mut self, key: &Key) -> u64 {
         let mut page_id = self.root_page;
         loop {
-            let _guard = self.lock_manager.lock_page(page_id);
+            let _guard = self.lock_manager.read_lock(page_id);
             let page = self.storage.read_page(page_id).unwrap();
             let node = page.get_node().unwrap();
             if node.is_leaf() {
@@ -291,7 +291,7 @@ impl<S: Storage> BPlusTree<S> {
     }
 
     fn insert_recursive(&mut self, page_id: u64, record: Record) -> Option<(Key, u64)> {
-        let _guard = self.lock_manager.lock_page(page_id);
+        let _guard = self.lock_manager.read_lock(page_id);
         let page = self.storage.read_page(page_id).unwrap();
         let node = page.get_node().unwrap();
 
@@ -422,7 +422,7 @@ impl<S: Storage> BPlusTree<S> {
     }
 
     fn delete_recursive(&mut self, page_id: u64, key: &Key) -> bool {
-        let _guard = self.lock_manager.lock_page(page_id);
+        let _guard = self.lock_manager.read_lock(page_id);
         let page = self.storage.read_page(page_id).unwrap();
         let node = page.get_node().unwrap();
 
