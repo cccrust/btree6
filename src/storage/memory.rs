@@ -1,8 +1,8 @@
 //! In-memory storage
 
-use std::collections::HashMap;
-use crate::page::Page;
 use crate::DEFAULT_PAGE_SIZE;
+use crate::page::Page;
+use std::collections::HashMap;
 
 /// In-memory storage
 pub struct MemoryStorage {

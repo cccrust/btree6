@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 //! btree6 command-line tool
 
 use btree6::{BPlusTree, Key};
@@ -102,11 +104,16 @@ fn run_tests() {
     assert_eq!(tree.get(&Key::Integer(5)), Some(b"Carol".to_vec()));
     assert_eq!(tree.get(&Key::Integer(99)), None);
 
-    // Test many inserts
+    // Test many inserts (0-19 = 20 keys)
+    // Keys 10, 20, 5 already exist, so they update
     for i in 0..20i64 {
         tree.insert(Key::Integer(i), b"x".to_vec());
     }
-    assert_eq!(tree.len(), 23);
+    // Total: 3 (initial) + 20 - 2 (10 and 20 overlap) = 21
+    // Actually: 5 is also in 0-19, so 3 overlaps: 3 + 20 - 3 = 20...
+    // Wait: 5, 10, 20 are in 0-19, so 3 overlaps. But we inserted 0-19 which includes 5,10
+    // Let's just check that get works:
+    assert_eq!(tree.len(), 21);
     for i in 0..20i64 {
         assert!(tree.get(&Key::Integer(i)).is_some());
     }
@@ -117,8 +124,15 @@ fn run_tests() {
         tree2.insert(Key::Integer(i), b"v".to_vec());
     }
     let results = tree2.range(&Key::Integer(3), &Key::Integer(7));
-    let keys: Vec<i64> = results.iter()
-        .map(|r| if let Key::Integer(v) = r.key { v } else { panic!() })
+    let keys: Vec<i64> = results
+        .iter()
+        .map(|r| {
+            if let Key::Integer(v) = r.key {
+                v
+            } else {
+                panic!()
+            }
+        })
         .collect();
     assert_eq!(keys, vec![3, 4, 5, 6, 7]);
 

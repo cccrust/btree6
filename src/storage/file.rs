@@ -1,9 +1,8 @@
 //! File-based storage
 
-use std::fs::{File, OpenOptions, create_dir_all};
-use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::Path;
 use crate::DEFAULT_PAGE_SIZE;
+use std::fs::{File, OpenOptions, create_dir_all};
+use std::path::Path;
 
 /// File-based storage (single file per index)
 pub struct FileStorage {
@@ -23,11 +22,14 @@ impl FileStorage {
             create_dir_all(p)?;
         }
 
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path)?;
+        let file_exists = path.exists();
+
+        let mut opts = OpenOptions::new();
+        opts.read(true).write(true).create(true);
+        if !file_exists {
+            opts.truncate(true);
+        }
+        let file = opts.open(path)?;
 
         let metadata = file.metadata()?;
         let file_size = metadata.len();
@@ -35,7 +37,7 @@ impl FileStorage {
         // Determine page count from file size
         let page_size = DEFAULT_PAGE_SIZE;
         let next_page_id = if file_size > 0 {
-            (file_size / page_size as u64) as u64
+            file_size / page_size as u64
         } else {
             0
         };

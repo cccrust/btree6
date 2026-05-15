@@ -1,10 +1,10 @@
 //! B+Tree implementation
 
-use std::path::Path;
+use crate::lock::LockManager;
 use crate::node::{Key, Node, Record, Value};
 use crate::page::Page;
-use crate::storage::{Storage, MemoryStorage, FileStorage};
-use crate::lock::LockManager;
+use crate::storage::{FileStorage, MemoryStorage, Storage};
+use std::path::Path;
 
 pub struct BPlusTree<S: Storage> {
     order: usize,
@@ -70,7 +70,10 @@ impl BPlusTree<FileStorage> {
 impl<S: Storage> BPlusTree<S> {
     /// Insert key-value pair
     pub fn insert(&mut self, key: Key, value: Value) {
-        let record = Record { key: key.clone(), value };
+        let record = Record {
+            key: key.clone(),
+            value,
+        };
         if let Some(split) = self.insert_recursive(self.root_page, record) {
             // Root split - create new root
             let mut new_root = Node::new_internal();
@@ -121,11 +124,18 @@ impl<S: Storage> BPlusTree<S> {
             };
 
             for (i, k) in node.keys.iter().enumerate() {
-                if k < start { continue; }
-                if k > end { return results; }
+                if k < start {
+                    continue;
+                }
+                if k > end {
+                    return results;
+                }
 
                 let value = node.values.get(i).cloned().unwrap_or_default();
-                results.push(Record { key: k.clone(), value });
+                results.push(Record {
+                    key: k.clone(),
+                    value,
+                });
             }
 
             match node.next_leaf {
@@ -147,11 +157,11 @@ impl<S: Storage> BPlusTree<S> {
         // Check if root needs to be replaced
         if self.root_page != 0 {
             let _guard = self.lock_manager.lock_page(self.root_page);
-            if let Some(page) = self.storage.read_page(self.root_page) {
-                if let Some(node) = page.get_node() {
-                    if !node.is_leaf() && node.keys.is_empty() && !node.children.is_empty() {
-                        self.root_page = node.children[0];
-                    }
+            if let Some(page) = self.storage.read_page(self.root_page)
+                && let Some(node) = page.get_node()
+            {
+                if !node.is_leaf() && node.keys.is_empty() && !node.children.is_empty() {
+                    self.root_page = node.children[0];
                 }
             }
         }
@@ -201,7 +211,10 @@ impl<S: Storage> BPlusTree<S> {
 
             for (i, key) in node.keys.iter().enumerate() {
                 let value = node.values.get(i).cloned().unwrap_or_default();
-                results.push(Record { key: key.clone(), value });
+                results.push(Record {
+                    key: key.clone(),
+                    value,
+                });
             }
 
             match node.next_leaf {
@@ -235,22 +248,29 @@ impl<S: Storage> BPlusTree<S> {
             if node.is_leaf() {
                 return page_id;
             }
-            let pos = node.keys.iter().position(|k| k > key).unwrap_or(node.keys.len());
+            let pos = node
+                .keys
+                .iter()
+                .position(|k| k > key)
+                .unwrap_or(node.keys.len());
             page_id = node.children[pos];
         }
     }
 
     fn insert_recursive(&mut self, page_id: u64, record: Record) -> Option<(Key, u64)> {
         let _guard = self.lock_manager.lock_page(page_id);
-        let mut page = self.storage.read_page(page_id).unwrap();
-        let mut node = page.get_node().unwrap();
+        let page = self.storage.read_page(page_id).unwrap();
+        let node = page.get_node().unwrap();
 
         if node.is_leaf() {
-            
             return self.insert_into_leaf(page_id, node, record);
         }
 
-        let pos = node.keys.iter().position(|k| k > &record.key).unwrap_or(node.keys.len());
+        let pos = node
+            .keys
+            .iter()
+            .position(|k| k > &record.key)
+            .unwrap_or(node.keys.len());
         let child_id = node.children[pos];
         drop(page);
 
@@ -272,21 +292,32 @@ impl<S: Storage> BPlusTree<S> {
         None
     }
 
-    fn insert_into_leaf(&mut self, page_id: u64, mut node: Node, record: Record) -> Option<(Key, u64)> {
-        let pos = node.keys.iter().position(|k| k > &record.key).unwrap_or(node.keys.len());
+    fn insert_into_leaf(
+        &mut self,
+        page_id: u64,
+        mut node: Node,
+        record: Record,
+    ) -> Option<(Key, u64)> {
+        // First, search for exact key match
+        let update_pos = node.keys.iter().position(|k| k == &record.key);
 
-        // Update if key exists
-        if pos < node.keys.len() && node.keys[pos] == record.key {
-            node.keys[pos] = record.key;
+        if let Some(pos) = update_pos {
+            // Update existing key
             node.values[pos] = record.value;
             let mut page = Page::new_leaf(page_id);
             page.set_node(&node);
             page.update_checksum();
             self.storage.write_page(&page);
-            self.size = self.size.saturating_sub(1);
+            self.size = self.size.saturating_sub(1); // Cancel the increment from insert
             return None;
         }
 
+        // Insert new key - find position to maintain sorted order
+        let pos = node
+            .keys
+            .iter()
+            .position(|k| k > &record.key)
+            .unwrap_or(node.keys.len());
         node.keys.insert(pos, record.key);
         node.values.insert(pos, record.value);
 
@@ -363,12 +394,16 @@ impl<S: Storage> BPlusTree<S> {
         let node = page.get_node().unwrap();
 
         if node.is_leaf() {
-            
             return self.delete_from_leaf(page_id, node, key);
         }
 
-        let pos = node.keys.iter().position(|k| k >= key).unwrap_or(node.keys.len().saturating_sub(1));
-        let child_id = node.children[pos];
+        // Use same logic as find_leaf: first key > key
+        let child_idx = node
+            .keys
+            .iter()
+            .position(|k| k > key)
+            .unwrap_or(node.keys.len());
+        let child_id = node.children[child_idx];
         drop(page);
 
         if !self.delete_recursive(child_id, key) {
@@ -381,10 +416,7 @@ impl<S: Storage> BPlusTree<S> {
         let child_node = child_page.get_node().unwrap();
 
         if child_node.keys.len() < min_keys {
-            
-            self.rebalance(page_id, pos);
-        } else {
-            
+            self.rebalance(page_id, child_idx);
         }
 
         true
@@ -564,8 +596,12 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn key(v: i64) -> Key { Key::Integer(v) }
-    fn val(s: &str) -> Vec<u8> { s.as_bytes().to_vec() }
+    fn key(v: i64) -> Key {
+        Key::Integer(v)
+    }
+    fn val(s: &str) -> Vec<u8> {
+        s.as_bytes().to_vec()
+    }
 
     #[test]
     fn test_insert_and_search() {
@@ -595,31 +631,42 @@ mod tests {
     #[test]
     fn test_range_search() {
         let mut tree = BPlusTree::memory(4);
-        for i in 1..=10i64 { tree.insert(key(i), val("v")); }
+        for i in 1..=10i64 {
+            tree.insert(key(i), val("v"));
+        }
         let results = tree.range(&key(3), &key(7));
-        let keys: Vec<i64> = results.iter()
-            .map(|r| if let Key::Integer(v) = r.key { v } else { panic!() })
+        let keys: Vec<i64> = results
+            .iter()
+            .map(|r| {
+                if let Key::Integer(v) = r.key {
+                    v
+                } else {
+                    panic!()
+                }
+            })
             .collect();
         assert_eq!(keys, vec![3, 4, 5, 6, 7]);
     }
 
-    // #[test]
-    // fn test_delete() {
-    //     let mut tree = BPlusTree::memory(4);
-    //     for i in 1..=10i64 { tree.insert(key(i), val("v")); }
-    //     assert!(tree.delete(&key(5)));
-    //     assert_eq!(tree.get(&key(5)), None);
-    //     assert_eq!(tree.len(), 9);
-    // }
+    #[test]
+    fn test_delete() {
+        let mut tree = BPlusTree::memory(4);
+        for i in 1..=10i64 {
+            tree.insert(key(i), val("v"));
+        }
+        assert!(tree.delete(&key(5)));
+        assert_eq!(tree.get(&key(5)), None);
+        assert_eq!(tree.len(), 9);
+    }
 
-    // #[test]
-    // fn test_update() {
-    //     let mut tree = BPlusTree::memory(4);
-    //     tree.insert(key(1), val("old"));
-    //     tree.insert(key(1), val("new"));
-    //     assert_eq!(tree.get(&key(1)), Some(val("new")));
-    //     assert_eq!(tree.len(), 1);
-    // }
+    #[test]
+    fn test_update() {
+        let mut tree = BPlusTree::memory(4);
+        tree.insert(key(1), val("old"));
+        tree.insert(key(1), val("new"));
+        assert_eq!(tree.get(&key(1)), Some(val("new")));
+        assert_eq!(tree.len(), 1);
+    }
 
     #[test]
     fn test_text_key() {
@@ -634,17 +681,15 @@ mod tests {
     //     let tmp_dir = TempDir::new().unwrap();
     //     let path = tmp_dir.path().join("test.bt");
 
-    //     let root_page;
     //     {
     //         let mut tree = BPlusTree::open(&path, 4).unwrap();
     //         for i in 1..=5i64 { tree.insert(key(i), val("persisted")); }
-    //         root_page = tree.root_page();
     //         tree.flush();
     //     }
     //     {
     //         let mut tree = BPlusTree::open(&path, 4).unwrap();
     //         for i in 1..=5i64 {
-    //             assert!(tree.get(&key(i)).is_some());
+    //             assert!(tree.get(&key(i)).is_some(), "key {} missing", i);
     //         }
     //     }
     // }

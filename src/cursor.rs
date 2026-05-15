@@ -1,8 +1,8 @@
 //! Cursor for B+Tree iteration
 
 use crate::node::{Key, Record};
-use crate::tree::BPlusTree;
 use crate::storage::Storage;
+use crate::tree::BPlusTree;
 
 pub struct Cursor<'a, S: Storage> {
     tree: &'a mut BPlusTree<S>,
@@ -79,7 +79,11 @@ impl<'a, S: Storage> Iterator for Cursor<'a, S> {
             }
 
             let key = node.keys[self.index_in_page].clone();
-            let value = node.values.get(self.index_in_page).cloned().unwrap_or_default();
+            let value = node
+                .values
+                .get(self.index_in_page)
+                .cloned()
+                .unwrap_or_default();
             self.index_in_page += 1;
 
             return Some(Record { key, value });

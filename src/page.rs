@@ -1,23 +1,23 @@
 //! Page structure - PostgreSQL style
 
-use serde::{Deserialize, Serialize};
-use crate::node::Node;
 use crate::DEFAULT_PAGE_SIZE;
+use crate::node::Node;
+use serde::{Deserialize, Serialize};
 
 const PAGE_MAGIC: u32 = 0x42545636; // "BTV6"
 
 /// Page header (32 bytes)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageHeader {
-    pub magic: u32,          // 4 bytes: magic number
-    pub page_id: u64,       // 8 bytes: page number
-    pub page_size: u32,     // 4 bytes: page size
-    pub node_type: u8,      // 1 byte: node type (0=internal, 1=leaf)
-    pub is_valid: u8,      // 1 byte: valid flag
-    pub free_space: u16,    // 2 bytes: free space offset
-    pub item_count: u16,    // 2 bytes: number of items
-    pub lsn: u64,           // 8 bytes: WAL LSN (optional)
-    pub checksum: u32,      // 4 bytes: CRC32
+    pub magic: u32,      // 4 bytes: magic number
+    pub page_id: u64,    // 8 bytes: page number
+    pub page_size: u32,  // 4 bytes: page size
+    pub node_type: u8,   // 1 byte: node type (0=internal, 1=leaf)
+    pub is_valid: u8,    // 1 byte: valid flag
+    pub free_space: u16, // 2 bytes: free space offset
+    pub item_count: u16, // 2 bytes: number of items
+    pub lsn: u64,        // 8 bytes: WAL LSN (optional)
+    pub checksum: u32,   // 4 bytes: CRC32
 }
 
 impl PageHeader {
@@ -45,8 +45,8 @@ impl PageHeader {
 /// Item ID - pointer to actual data in page
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ItemId {
-    pub offset: u16,   // offset from page start
-    pub length: u16,   // data length
+    pub offset: u16, // offset from page start
+    pub length: u16, // data length
 }
 
 impl ItemId {
@@ -60,7 +60,7 @@ impl ItemId {
 pub struct Page {
     pub header: PageHeader,
     pub items: Vec<ItemId>,
-    pub data: Vec<u8>,  // serialized node
+    pub data: Vec<u8>, // serialized node
 }
 
 impl Page {

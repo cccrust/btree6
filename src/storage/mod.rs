@@ -1,10 +1,10 @@
 //! Storage backends
 
-mod memory;
 mod file;
+mod memory;
 
-pub use memory::MemoryStorage;
 pub use file::FileStorage;
+pub use memory::MemoryStorage;
 
 use crate::page::Page;
 use std::io::{Read, Seek, SeekFrom, Write};

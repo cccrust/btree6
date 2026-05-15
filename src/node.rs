@@ -12,11 +12,17 @@ pub enum Key {
 
 impl Key {
     pub fn as_i64(&self) -> Option<i64> {
-        match self { Key::Integer(v) => Some(*v), _ => None }
+        match self {
+            Key::Integer(v) => Some(*v),
+            _ => None,
+        }
     }
 
     pub fn as_str(&self) -> Option<&str> {
-        match self { Key::Text(s) => Some(s), _ => None }
+        match self {
+            Key::Text(s) => Some(s),
+            _ => None,
+        }
     }
 }
 
@@ -31,15 +37,21 @@ impl std::fmt::Display for Key {
 }
 
 impl From<i64> for Key {
-    fn from(v: i64) -> Self { Key::Integer(v) }
+    fn from(v: i64) -> Self {
+        Key::Integer(v)
+    }
 }
 
 impl From<String> for Key {
-    fn from(s: String) -> Self { Key::Text(s) }
+    fn from(s: String) -> Self {
+        Key::Text(s)
+    }
 }
 
 impl From<&str> for Key {
-    fn from(s: &str) -> Self { Key::Text(s.to_string()) }
+    fn from(s: &str) -> Self {
+        Key::Text(s.to_string())
+    }
 }
 
 /// Value type - raw bytes
@@ -70,8 +82,8 @@ pub enum NodeType {
 pub struct Node {
     pub node_type: NodeType,
     pub keys: Vec<Key>,
-    pub children: Vec<u64>,      // page ids
-    pub values: Vec<Value>,      // only for leaf
+    pub children: Vec<u64>, // page ids
+    pub values: Vec<Value>, // only for leaf
     pub next_leaf: Option<u64>,
     pub prev_leaf: Option<u64>,
 }

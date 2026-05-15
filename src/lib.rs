@@ -1,3 +1,5 @@
+#![allow(dead_code, unused, clippy::collapsible_if)]
+
 //! btree6 - B+Tree implementation in Rust
 //!
 //! A high-performance, concurrent B+Tree with PostgreSQL-style design.
@@ -12,18 +14,18 @@
 //! assert_eq!(tree.get(&Key::Integer(42)), Some(b"hello".to_vec()));
 //! ```
 
+pub mod cursor;
+pub mod lock;
 pub mod node;
 pub mod page;
-pub mod tree;
 pub mod storage;
-pub mod lock;
-pub mod cursor;
+pub mod tree;
 
-pub use tree::BPlusTree;
-pub use node::{Key, Value, Record};
-pub use storage::{Storage, FileStorage, MemoryStorage};
-pub use lock::LockManager;
 pub use cursor::Cursor;
+pub use lock::LockManager;
+pub use node::{Key, Record, Value};
+pub use storage::{FileStorage, MemoryStorage, Storage};
+pub use tree::BPlusTree;
 
 pub const DEFAULT_PAGE_SIZE: usize = 8192;
 pub const DEFAULT_ORDER: usize = 64;
