@@ -2,13 +2,15 @@
 
 use crate::DEFAULT_PAGE_SIZE;
 use crate::page::Page;
+use crate::storage::BTreeHeader;
 use std::collections::HashMap;
 
 /// In-memory storage
 pub struct MemoryStorage {
     pub pages: HashMap<u64, Page>,
     pub next_page_id: u64,
-    page_size: usize,
+    pub page_size: usize,
+    pub header: Option<BTreeHeader>,
 }
 
 impl MemoryStorage {
@@ -17,6 +19,7 @@ impl MemoryStorage {
             pages: HashMap::new(),
             next_page_id: 0,
             page_size: DEFAULT_PAGE_SIZE,
+            header: None,
         }
     }
 
@@ -25,12 +28,21 @@ impl MemoryStorage {
             pages: HashMap::with_capacity(capacity),
             next_page_id: 0,
             page_size: DEFAULT_PAGE_SIZE,
+            header: None,
         }
     }
 
     pub fn clear(&mut self) {
         self.pages.clear();
         self.next_page_id = 0;
+    }
+
+    pub fn set_header(&mut self, header: BTreeHeader) {
+        self.header = Some(header);
+    }
+
+    pub fn header(&self) -> Option<&BTreeHeader> {
+        self.header.as_ref()
     }
 }
 
@@ -46,6 +58,7 @@ impl Clone for MemoryStorage {
             pages: self.pages.clone(),
             next_page_id: self.next_page_id,
             page_size: self.page_size,
+            header: self.header.clone(),
         }
     }
 }

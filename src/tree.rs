@@ -3,7 +3,7 @@
 use crate::lock::LockManager;
 use crate::node::{Key, Node, Record, Value};
 use crate::page::Page;
-use crate::storage::{FileStorage, MemoryStorage, Storage};
+use crate::storage::{BTreeHeader, FileStorage, MemoryStorage, Storage};
 use std::path::Path;
 
 pub struct BPlusTree<S: Storage> {
@@ -49,12 +49,43 @@ impl BPlusTree<FileStorage> {
     /// Create new file-based B+Tree
     pub fn open<P: AsRef<Path>>(path: P, order: usize) -> std::io::Result<Self> {
         let mut storage = FileStorage::open(path)?;
+
+        // Check if file has existing header (recover existing tree)
+        if let Some(header) = storage.header() {
+            println!(
+                "Reopening: root_page={}, size={}",
+                header.root_page, header.size
+            );
+            let root_page = header.root_page;
+            let size = header.size as usize;
+
+            // Verify root page exists
+            if storage.read_page(root_page).is_none() {
+                panic!("Root page {} not found!", root_page);
+            }
+
+            return Ok(BPlusTree {
+                order,
+                storage,
+                lock_manager: LockManager::new(),
+                root_page,
+                size,
+            });
+        }
+
+        // Create new tree - reserve page 0 for header
+        // Allocate page 1 for root (skip page 0 which is header)
+        let _ = storage.alloc_page(); // skip page 0 (header)
         let root_page = storage.alloc_page();
         let root_node = Node::new_leaf();
         let mut page = Page::new_leaf(root_page);
         page.set_node(&root_node);
         page.update_checksum();
         storage.write_page(&page);
+
+        // Write initial header
+        let header = BTreeHeader::new(root_page, storage.page_count(), 0);
+        storage.set_header(header);
         storage.flush();
 
         Ok(BPlusTree {
@@ -186,6 +217,8 @@ impl<S: Storage> BPlusTree<S> {
 
     /// Flush to storage
     pub fn flush(&mut self) {
+        let header = BTreeHeader::new(self.root_page, self.storage.page_count(), self.size as u64);
+        self.storage.set_header(header);
         self.storage.flush();
     }
 
@@ -676,21 +709,23 @@ mod tests {
         assert_eq!(tree.get(&Key::Text("banana".into())), Some(val("fruit")));
     }
 
-    // #[test]
-    // fn test_file_storage() {
-    //     let tmp_dir = TempDir::new().unwrap();
-    //     let path = tmp_dir.path().join("test.bt");
+    #[test]
+    fn test_file_storage() {
+        let tmp_dir = TempDir::new().unwrap();
+        let path = tmp_dir.path().join("test.bt");
 
-    //     {
-    //         let mut tree = BPlusTree::open(&path, 4).unwrap();
-    //         for i in 1..=5i64 { tree.insert(key(i), val("persisted")); }
-    //         tree.flush();
-    //     }
-    //     {
-    //         let mut tree = BPlusTree::open(&path, 4).unwrap();
-    //         for i in 1..=5i64 {
-    //             assert!(tree.get(&key(i)).is_some(), "key {} missing", i);
-    //         }
-    //     }
-    // }
+        {
+            let mut tree = BPlusTree::open(&path, 4).unwrap();
+            for i in 1..=5i64 {
+                tree.insert(key(i), val("persisted"));
+            }
+            tree.flush();
+        }
+        {
+            let mut tree = BPlusTree::open(&path, 4).unwrap();
+            for i in 1..=5i64 {
+                assert!(tree.get(&key(i)).is_some(), "key {} missing", i);
+            }
+        }
+    }
 }

@@ -3,7 +3,7 @@
 mod file;
 mod memory;
 
-pub use file::FileStorage;
+pub use file::{BTreeHeader, FileStorage};
 pub use memory::MemoryStorage;
 
 use crate::page::Page;
@@ -17,6 +17,8 @@ pub trait Storage: Send + Sync {
     fn page_count(&self) -> u64;
     fn flush(&mut self);
     fn close(&mut self);
+    fn set_header(&mut self, header: BTreeHeader);
+    fn header(&self) -> Option<&BTreeHeader>;
 }
 
 /// In-memory storage for testing
@@ -44,6 +46,14 @@ impl Storage for MemoryStorage {
     fn close(&mut self) {
         self.pages.clear();
         self.next_page_id = 0;
+    }
+
+    fn set_header(&mut self, header: BTreeHeader) {
+        self.header = Some(header);
+    }
+
+    fn header(&self) -> Option<&BTreeHeader> {
+        self.header.as_ref()
     }
 }
 
@@ -106,5 +116,13 @@ impl Storage for FileStorage {
             let _ = f.flush();
         }
         *self.file_mut() = None;
+    }
+
+    fn set_header(&mut self, header: BTreeHeader) {
+        self.set_header(header);
+    }
+
+    fn header(&self) -> Option<&BTreeHeader> {
+        self.header()
     }
 }
